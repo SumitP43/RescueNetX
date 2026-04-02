@@ -1,6 +1,7 @@
 const Message = require('../models/Message');
 const { emitNewSOS } = require('../sockets/socketHandlers');
 const logger = require('../utils/logger');
+const { sanitizeString, sanitizeBool } = require('../utils/validators');
 
 /**
  * Create a new SOS message and broadcast it in real-time.
@@ -22,11 +23,14 @@ async function createSOS(data, userId) {
  * Return all SOS messages with optional filters and pagination.
  */
 async function getAllSOS(filters = {}) {
-  const { page = 1, limit = 20, severity, is_delivered } = filters;
+  const { page = 1, limit = 20 } = filters;
   const query = { message_type: 'sos' };
 
+  const severity = sanitizeString(filters.severity);
   if (severity) query.severity = severity;
-  if (is_delivered !== undefined) query.is_delivered = is_delivered === 'true';
+
+  const isDelivered = sanitizeBool(filters.is_delivered);
+  if (isDelivered !== undefined) query.is_delivered = isDelivered;
 
   const skip = (Number(page) - 1) * Number(limit);
 
@@ -65,8 +69,9 @@ async function syncMessages(messages, deviceId) {
   for (const msg of messages) {
     try {
       // Check for existing record by client-provided message_id
-      const exists = msg.message_id
-        ? await Message.findOne({ message_id: msg.message_id })
+      const safeMessageId = msg.message_id ? sanitizeString(msg.message_id) : null;
+      const exists = safeMessageId
+        ? await Message.findOne({ message_id: safeMessageId })
         : null;
 
       if (exists) {

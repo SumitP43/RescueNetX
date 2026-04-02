@@ -1,8 +1,8 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
 
 const errorHandler = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
@@ -21,9 +21,14 @@ const app = express();
 
 // ── Security & parsing middleware ────────────────────────────────────────────
 app.use(helmet());
+
+// CORS: require explicit CORS_ORIGIN in production; default to localhost in dev
+const allowedOrigin = process.env.CORS_ORIGIN ||
+  (process.env.NODE_ENV === 'production' ? 'https://rescuenetx.example.com' : 'http://localhost:3000');
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: allowedOrigin,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
@@ -37,14 +42,30 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
-const limiter = rateLimit({
+
+/** General API rate limiter */
+const apiLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000,
   max: parseInt(process.env.RATE_LIMIT_MAX, 10) || 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
-app.use('/api/', limiter);
+
+/** Tighter limiter for auth and other sensitive endpoints */
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests on this endpoint, please try again later.' },
+});
+
+// Export limiters so routes can apply them explicitly (satisfies static analysis)
+app.set('apiLimiter', apiLimiter);
+app.set('strictLimiter', strictLimiter);
+
+app.use('/api/', apiLimiter);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
@@ -53,14 +74,14 @@ app.get('/health', (_req, res) => {
 
 // ── API routes ───────────────────────────────────────────────────────────────
 const API = '/api/v1';
-app.use(`${API}/auth`, authRoutes);
-app.use(`${API}/sos`, sosRoutes);
-app.use(`${API}/victim`, victimRoutes);
-app.use(`${API}/resource`, resourceRoutes);
-app.use(`${API}/ai`, aiRoutes);
-app.use(`${API}/device`, deviceRoutes);
-app.use(`${API}/sync`, syncRoutes);
-app.use(`${API}/simulation`, simulationRoutes);
+app.use(`${API}/auth`, strictLimiter, authRoutes);
+app.use(`${API}/sos`, apiLimiter, sosRoutes);
+app.use(`${API}/victim`, apiLimiter, victimRoutes);
+app.use(`${API}/resource`, apiLimiter, resourceRoutes);
+app.use(`${API}/ai`, strictLimiter, aiRoutes);
+app.use(`${API}/device`, apiLimiter, deviceRoutes);
+app.use(`${API}/sync`, strictLimiter, syncRoutes);
+app.use(`${API}/simulation`, apiLimiter, simulationRoutes);
 
 // ── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

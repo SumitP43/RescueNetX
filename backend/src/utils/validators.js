@@ -87,6 +87,25 @@ const validateNearbyQuery = [
     .withMessage('Radius must be a positive number (metres)'),
 ];
 
+/**
+ * Sanitize a value to a plain string, stripping any MongoDB operator objects.
+ * Prevents NoSQL injection where user supplies `{ $gt: "" }` instead of a string.
+ */
+function sanitizeString(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'object') return null; // reject operator objects
+  return String(value);
+}
+
+/**
+ * Sanitize a boolean-like query string value.
+ */
+function sanitizeBool(value) {
+  if (value === 'true' || value === true) return true;
+  if (value === 'false' || value === false) return false;
+  return undefined;
+}
+
 module.exports = {
   extractValidationErrors,
   validateRegister,
@@ -96,4 +115,6 @@ module.exports = {
   validateResource,
   validateDeviceStatus,
   validateNearbyQuery,
+  sanitizeString,
+  sanitizeBool,
 };

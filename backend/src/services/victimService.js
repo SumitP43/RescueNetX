@@ -14,8 +14,13 @@ async function addVictim(data) {
 
 /**
  * Update an existing victim record and broadcast the update.
+ * Only a controlled set of fields are accepted to prevent injection.
  */
-async function updateVictim(id, data) {
+async function updateVictim(id, rawData) {
+  const allowedFields = ['name', 'status', 'severity', 'description', 'rescuer_id', 'is_rescued', 'location'];
+  const data = Object.fromEntries(
+    Object.entries(rawData).filter(([k]) => allowedFields.includes(k))
+  );
   const victim = await Victim.findByIdAndUpdate(id, data, {
     new: true,
     runValidators: true,

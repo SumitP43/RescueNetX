@@ -1,17 +1,24 @@
 const Device = require('../models/Device');
 const logger = require('../utils/logger');
+const { sanitizeString } = require('../utils/validators');
 
 /**
  * Register a new device in the system.
  */
 async function registerDevice(data) {
-  const existing = await Device.findOne({ device_id: data.device_id });
+  const device_id = sanitizeString(data.device_id);
+  if (!device_id) {
+    const err = new Error('Invalid device_id');
+    err.statusCode = 400;
+    throw err;
+  }
+  const existing = await Device.findOne({ device_id });
   if (existing) {
     const err = new Error('Device already registered');
     err.statusCode = 409;
     throw err;
   }
-  const device = await Device.create(data);
+  const device = await Device.create({ ...data, device_id });
   logger.info(`Device registered: ${device.device_id}`);
   return device;
 }

@@ -1,6 +1,7 @@
 const Resource = require('../models/Resource');
 const { emitResourceUpdate } = require('../sockets/socketHandlers');
 const logger = require('../utils/logger');
+const { sanitizeString, sanitizeBool } = require('../utils/validators');
 
 /**
  * Create a resource and broadcast the update.
@@ -17,9 +18,11 @@ async function createResource(data) {
  */
 async function getAllResources(filters = {}) {
   const query = {};
-  if (filters.type) query.type = filters.type;
-  if (filters.availability !== undefined)
-    query.availability = filters.availability === 'true' || filters.availability === true;
+  const type = sanitizeString(filters.type);
+  if (type) query.type = type;
+
+  const availability = sanitizeBool(filters.availability);
+  if (availability !== undefined) query.availability = availability;
 
   return Resource.find(query).populate('assigned_victim', 'name status').sort({ last_updated: -1 });
 }

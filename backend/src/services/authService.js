@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const { sanitizeString } = require('../utils/validators');
 
 /**
  * Generate a signed JWT for the given user id.
@@ -16,7 +17,13 @@ function generateToken(userId) {
  * Password hashing is handled by the User pre-save hook.
  */
 async function register(userData) {
-  const { name, email, password, role } = userData;
+  const { name, password, role } = userData;
+  const email = sanitizeString(userData.email);
+  if (!email) {
+    const err = new Error('Invalid email');
+    err.statusCode = 400;
+    throw err;
+  }
 
   const existing = await User.findOne({ email });
   if (existing) {
@@ -35,7 +42,13 @@ async function register(userData) {
 /**
  * Authenticate a user and return a JWT.
  */
-async function login(email, password) {
+async function login(rawEmail, password) {
+  const email = sanitizeString(rawEmail);
+  if (!email) {
+    const err = new Error('Invalid credentials');
+    err.statusCode = 401;
+    throw err;
+  }
   // Explicitly select password field (excluded by default)
   const user = await User.findOne({ email }).select('+password');
   if (!user) {
