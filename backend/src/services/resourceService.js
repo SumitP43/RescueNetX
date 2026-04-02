@@ -29,8 +29,16 @@ async function getAllResources(filters = {}) {
 
 /**
  * Update a resource and broadcast the change.
+ * Only a controlled set of fields are accepted to prevent injection.
  */
-async function updateResource(id, data) {
+async function updateResource(id, rawData) {
+  const allowedFields = [
+    'type', 'name', 'current_location', 'availability',
+    'assigned_task', 'assigned_victim', 'metadata',
+  ];
+  const data = Object.fromEntries(
+    Object.entries(rawData).filter(([k]) => allowedFields.includes(k))
+  );
   const resource = await Resource.findByIdAndUpdate(
     id,
     { ...data, last_updated: new Date() },

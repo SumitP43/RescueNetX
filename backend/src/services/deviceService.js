@@ -25,13 +25,17 @@ async function registerDevice(data) {
 
 /**
  * Update the connectivity status (and last_seen) of a device.
+ * The status value is validated by middleware; we cast it to string defensively.
  */
-async function updateDeviceStatus(id, status) {
-  const device = await Device.findByIdAndUpdate(
-    id,
-    { connectivity_status: status, last_seen: new Date() },
-    { new: true, runValidators: true }
-  );
+async function updateDeviceStatus(id, rawStatus) {
+  const status = sanitizeString(rawStatus);
+  if (!status) {
+    const err = new Error('Invalid status value');
+    err.statusCode = 400;
+    throw err;
+  }
+  const update = { connectivity_status: status, last_seen: new Date() };
+  const device = await Device.findByIdAndUpdate(id, update, { new: true, runValidators: true });
   if (!device) {
     const err = new Error('Device not found');
     err.statusCode = 404;
